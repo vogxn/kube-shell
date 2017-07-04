@@ -38,7 +38,6 @@ class KubectlCompleter(Completer):
         word_before_cursor = document.get_word_before_cursor(WORD=True)
         cmdline = document.text_before_cursor.strip()
         tokens = shlex.split(cmdline)
-
         _, suggestions = self.parser.parse_tokens(tokens)
         filtered_suggestions = fuzzyfinder(word_before_cursor, suggestions)
         for suggestion in filtered_suggestions:
