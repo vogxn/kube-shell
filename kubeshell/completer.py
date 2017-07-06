@@ -39,9 +39,9 @@ class KubectlCompleter(Completer):
         cmdline = document.text_before_cursor.strip()
         tokens = shlex.split(cmdline)
         _, suggestions = self.parser.parse_tokens(tokens)
-        filtered_suggestions = fuzzyfinder(word_before_cursor, suggestions)
-        for suggestion in filtered_suggestions:
-            yield Completion(suggestion, -len(word_before_cursor), display=suggestion)
+        valid_keys = fuzzyfinder(word_before_cursor, suggestions.keys())
+        for key in valid_keys:
+            yield Completion(key, -len(word_before_cursor), display=key, display_meta=suggestions[key])
 
     def get_resources(self, resource, namespace="all"):
         resources = []

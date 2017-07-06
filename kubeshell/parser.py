@@ -10,6 +10,7 @@ formatter = logging.Formatter(fmt=FORMAT)
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+
 class Option(object):
     """ Option represents an optional local flag in kubectl """
 
@@ -70,34 +71,57 @@ class Parser(object):
         returns tuple of (parsed tokens, suggestions)
         """
         if len(tokens) == 1:
-            return list(), ["kubectl"]
+            return list(), {"kubectl": self.ast.help}
         else:
             tokens.reverse()
-        parsed, unparsed, suggestions = self.treewalk(self.ast, parsed=[], unparsed=tokens)
+        parsed, _, suggestions = self.treewalk(self.ast, parsed=list(), unparsed=tokens)
         return parsed, suggestions
 
     def treewalk(self, root, parsed, unparsed):
-        """ Walk the syntax tree at root
+        """ Recrusively walks the syntax tree at root and returns
+        the items parsed, unparsed and possible suggestions """
+        suggestions = dict()
+        if not unparsed:
+            return parsed, unparsed, suggestions
 
-        return tuple of tokens parsed and possible suggestions """
-        if unparsed:
-            token = unparsed.pop().strip()
-            if root.node == token:
-                parsed.append(token)
-                for child in root.children:
-                    self.treewalk(child, parsed, unparsed)
-                suggestions = list()
-                for child in root.children:
-                    suggestions.append(child.node)
-                return parsed, unparsed, suggestions
-            # elif token.startswith("--"):
-            #     for flag in root.localFlags:
-            #         if flag == token:
-            #             parsed.append(token)
-            #             self.treewalk()
+        token = unparsed.pop().strip()
+        if root.node == token:
+            parsed.append(token)
+            if self.isOption(unparsed):
+                return self.evalOptions(root, parsed, unparsed[:])
+            for child in root.children:
+                # recursively walk children of matched node
+                child_parsed, unparsed, suggestions = self.treewalk(child, list(), unparsed[:])
+                if child_parsed:  # subtree returned further parsed tokens
+                    parsed.extend(child_parsed)
+                    break
             else:
-                unparsed.append(token)
-        return parsed, unparsed, None
+                # no matches found in command tree
+                # return children of root as suggestions
+                for child in root.children:
+                    suggestions[child.node] = child.help
+            return parsed, unparsed, suggestions
+        else:
+            unparsed.append(token)
+        return parsed, unparsed, suggestions
 
-if __name__ == '__main__':
-    Parser('data/cli.json')
+    def isOption(self, unparsed):
+        """ Peek to find out if next token is an option """
+        if unparsed and unparsed[0].startswith("--"):
+            return True
+        return False
+
+    def evalOptions(self, root, parsed, unparsed):
+        """ Evaluate only the options and return flags as suggestions """
+        if not self.isOption(unparsed):
+            return parsed, unparsed, dict()
+        suggestions = dict()
+        nextToken = unparsed.pop()
+        for flag in root.localFlags:
+            if flag.name == nextToken:
+                parsed.append(nextToken)
+                break
+        else:
+            for flag in root.localFlags:
+                suggestions[flag.name] = flag.helptext
+        return parsed, unparsed, suggestions
