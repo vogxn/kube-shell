@@ -78,7 +78,7 @@ class Parser(object):
         return parsed, suggestions
 
     def treewalk(self, root, parsed, unparsed):
-        """ Recrusively walks the syntax tree at root and returns
+        """ Recursively walks the syntax tree at root and returns
         the items parsed, unparsed and possible suggestions """
         suggestions = dict()
         if not unparsed:
@@ -87,10 +87,16 @@ class Parser(object):
         token = unparsed.pop().strip()
         if root.node == token:
             parsed.append(token)
-            if self.isOption(unparsed):
-                return self.evalOptions(root, parsed, unparsed[:])
+            # check for localFlags and globalFlags
+            if self.peekForOption(unparsed):
+                option_parsed, unparsed, suggestions = self.evalOptions(root, list(), unparsed[:])  #self.treewalk(root, list(), unparsed[:])
+                if option_parsed:
+                    parsed.extend(option_parsed)
+                    # TODO: @vogxn: perform get_resources(..) if applicable
+                else:
+                    return parsed, unparsed, suggestions
+            # recursively walk children of matched node
             for child in root.children:
-                # recursively walk children of matched node
                 child_parsed, unparsed, suggestions = self.treewalk(child, list(), unparsed[:])
                 if child_parsed:  # subtree returned further parsed tokens
                     parsed.extend(child_parsed)
@@ -105,23 +111,31 @@ class Parser(object):
             unparsed.append(token)
         return parsed, unparsed, suggestions
 
-    def isOption(self, unparsed):
+    def peekForOption(self, unparsed):
         """ Peek to find out if next token is an option """
-        if unparsed and unparsed[0].startswith("--"):
+        if unparsed and unparsed[-1].startswith("--"):
             return True
         return False
 
     def evalOptions(self, root, parsed, unparsed):
         """ Evaluate only the options and return flags as suggestions """
-        if not self.isOption(unparsed):
-            return parsed, unparsed, dict()
         suggestions = dict()
-        nextToken = unparsed.pop()
+        token = unparsed.pop().strip()
         for flag in root.localFlags:
-            if flag.name == nextToken:
-                parsed.append(nextToken)
+            if flag.name == token:
+                parsed.append(token)
                 break
         else:
             for flag in root.localFlags:
                 suggestions[flag.name] = flag.helptext
+
+        if suggestions:  # incomplete parse, replace token
+            unparsed.append(token)
         return parsed, unparsed, suggestions
+
+if __name__ == '__main__':
+    parser = Parser('/Users/tsp/workspace/py/kube-shell/kubeshell/data/cli.json')
+    # p, _, s = parser.treewalk(parser.ast, parsed=list(), unparsed=['--', 'nodeport', 'service', 'create', 'kubectl'])
+    # print(p, s)
+    p, _, s = parser.treewalk(parser.ast, parsed=list(), unparsed=['cre', '--api-version', 'kubectl'])
+    print(p, s)
