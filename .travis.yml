@@ -15,8 +15,8 @@ before_script:
   # exit-zero treates all errors as warnings.  The GitHub editor is 127 chars wide
   - flake8 . --count --exit-zero --max-line-length=127 --statistics
 install:
-  - python setup.py install
-  - pip install pexpect
+  - pip install -r requirements.txt
+  - pip install .
 script:
-  - python kubeshell/tests/test_cli.py
+  - pytest
 sudo: false

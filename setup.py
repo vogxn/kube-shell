@@ -22,10 +22,21 @@ requires = [
     'kubernetes>=0.10.0',
 ]
 
+test_requirements = [
+    'flake8',
+    'pexpect',
+    'pytest>=2.8.0',
+    'pytest-cov',
+]
+
+with open('README.rst') as f:
+    long_description = f.read()
+
 setup(
     name='kube-shell',
     version=__version__,
     description='Kubernetes shell: An integrated shell for working with the Kubernetes CLI',
+    long_description=long_description,
     author='Cloudnative Labs',
     url='https://github.com/cloudnativelabs/kube-shell',
     packages=find_packages(),
@@ -33,6 +44,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=requires,
+    tests_require=test_requirements,
     entry_points={
         'console_scripts': [
             'kube-shell = kubeshell.main:cli',

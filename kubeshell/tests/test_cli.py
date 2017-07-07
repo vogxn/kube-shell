@@ -1,21 +1,17 @@
-from __future__ import unicode_literals
-import unittest
-import pip
+import pytest
 import pexpect
-import unittest
 
-class CliTest(unittest.TestCase):
 
-    def test_run_cli(self):
-        self.cli = None
-        self.step_run_cli()
-        self.step_see_prompt()
+class TestCLI(object):
 
-    def step_run_cli(self):
-        self.cli = pexpect.spawnu('kube-shell')
-
-    def step_see_prompt(self):
+    def test_cli_spawn(self, request, start_shell):
+        self.cli = start_shell
         self.cli.expect('kube-shell> ')
 
-if __name__ == "__main__":
-    unittest.main()
+    @pytest.fixture()
+    def start_shell(self, request):
+        cli = pexpect.spawnu('kube-shell')
+        def _cleanup():
+            self.cli.close()
+        request.addfinalizer(_cleanup)
+        return cli
