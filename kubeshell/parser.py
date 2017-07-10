@@ -38,6 +38,7 @@ class Parser(object):
     def __init__(self, apiFile):
         self.json_api = apiFile
         self.schema = dict()
+        self.globalFlags = list()
         with open(self.json_api) as api:
             self.schema = json.load(api)
         self.ast = CommandTree("kubectl")
@@ -53,6 +54,8 @@ class Parser(object):
         # {args: {}, options: {}, help: ""}
         root.help = schema.get("help")
         for name, desc in schema.get("options").items():
+            if root.node == "kubectl":  # register global flags
+                self.globalFlags.append(Option(name, desc["help"]))
             root.localFlags.append(Option(name, desc["help"]))
         for arg in schema.get("args"):
             node = CommandTree(node=arg)
@@ -89,7 +92,7 @@ class Parser(object):
             parsed.append(token)
             # check for localFlags and globalFlags
             if self.peekForOption(unparsed):
-                option_parsed, unparsed, suggestions = self.evalOptions(root, list(), unparsed[:])  #self.treewalk(root, list(), unparsed[:])
+                option_parsed, unparsed, suggestions = self.evalOptions(root, list(), unparsed[:])
                 if option_parsed:
                     parsed.extend(option_parsed)
                     # TODO: @vogxn: perform get_resources(..) if applicable
@@ -107,6 +110,11 @@ class Parser(object):
                 for child in root.children:
                     suggestions[child.node] = child.help
             return parsed, unparsed, suggestions
+        elif self.peekForOption(unparsed):
+            option_parsed, unparsed, suggestions = self.evalOptions(root, list(), unparsed[:])
+            if option_parsed:
+                parsed.extend(option_parsed)
+                # TODO: @vogxn: perform get_resources(..) if applicable
         else:
             unparsed.append(token)
         return parsed, unparsed, suggestions
@@ -121,12 +129,14 @@ class Parser(object):
         """ Evaluate only the options and return flags as suggestions """
         suggestions = dict()
         token = unparsed.pop().strip()
-        for flag in root.localFlags:
+
+        allFlags = root.localFlags + self.globalFlags
+        for flag in allFlags:
             if flag.name == token:
                 parsed.append(token)
                 break
         else:
-            for flag in root.localFlags:
+            for flag in allFlags:
                 suggestions[flag.name] = flag.helptext
 
         if suggestions:  # incomplete parse, replace token
@@ -135,7 +145,5 @@ class Parser(object):
 
 if __name__ == '__main__':
     parser = Parser('/Users/tsp/workspace/py/kube-shell/kubeshell/data/cli.json')
-    # p, _, s = parser.treewalk(parser.ast, parsed=list(), unparsed=['--', 'nodeport', 'service', 'create', 'kubectl'])
-    # print(p, s)
-    p, _, s = parser.treewalk(parser.ast, parsed=list(), unparsed=['cre', '--api-version', 'kubectl'])
+    p, _, s = parser.treewalk(parser.ast, parsed=list(), unparsed=['--', '--tcp 900:8080', 'nodeport', 'service', 'create', 'kubectl'])
     print(p, s)
