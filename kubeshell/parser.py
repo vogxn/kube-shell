@@ -1,14 +1,10 @@
 import json
 import os
-import logging
 
-logger = logging.getLogger("kubeshell.logger")
-logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler("kubeshell.log")
-FORMAT = "%(asctime)s %(levelname)-8s %(funcName)s:%(lineno)s %(message)s"
-formatter = logging.Formatter(fmt=FORMAT)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
+from kubeshell.client import KubernetesClient
+
+import logging
+logger = logging.getLogger(__name__)
 
 
 class Option(object):
@@ -43,6 +39,7 @@ class Parser(object):
             self.schema = json.load(api)
         self.ast = CommandTree("kubectl")
         self.ast = self.build(self.ast, self.schema.get("kubectl"))
+        self.kube_client = KubernetesClient()
 
     def build(self, root, schema):
         """ Build the syntax tree for kubectl command line """
@@ -85,61 +82,66 @@ class Parser(object):
         the items parsed, unparsed and possible suggestions """
         suggestions = dict()
         if not unparsed:
+            logger.debug("no tokens left unparsed. returning %s, %s", parsed, suggestions)
             return parsed, unparsed, suggestions
 
         token = unparsed.pop().strip()
+        logger.debug("begin parsing at %s w/ tokens: %s", root.node, unparsed)
         if root.node == token:
+            logger.debug("root node: %s matches next token:%s", root.node, token)
             parsed.append(token)
-            # check for localFlags and globalFlags
-            if self.peekForOption(unparsed):
-                option_parsed, unparsed, suggestions = self.evalOptions(root, list(), unparsed[:])
-                if option_parsed:
-                    parsed.extend(option_parsed)
-                    # TODO: @vogxn: perform get_resources(..) if applicable
-                else:
-                    return parsed, unparsed, suggestions
-            # recursively walk children of matched node
-            for child in root.children:
-                child_parsed, unparsed, suggestions = self.treewalk(child, list(), unparsed[:])
-                if child_parsed:  # subtree returned further parsed tokens
-                    parsed.extend(child_parsed)
-                    break
-            else:
-                # no matches found in command tree
-                # return children of root as suggestions
+            if self.peekForOption(unparsed):  # check for localFlags and globalFlags
+                logger.debug("option(s) upcoming %s", unparsed)
+                parsed_opts, unparsed, suggestions = self.evalOptions(root, list(), unparsed[:])
+                if parsed_opts:
+                    logger.debug("parsed option(s): %s", parsed_opts)
+                    parsed.extend(parsed_opts)
+            if unparsed and not self.peekForOption(unparsed):  # unparsed bits without options
+                logger.debug("begin subtree %s parsing", root.node)
                 for child in root.children:
-                    suggestions[child.node] = child.help
-            return parsed, unparsed, suggestions
-        elif self.peekForOption(unparsed):
-            option_parsed, unparsed, suggestions = self.evalOptions(root, list(), unparsed[:])
-            if option_parsed:
-                parsed.extend(option_parsed)
-                # TODO: @vogxn: perform get_resources(..) if applicable
+                    parsed_subtree, unparsed, suggestions = self.treewalk(child, list(), unparsed[:])
+                    if parsed_subtree:  # subtree returned further parsed tokens
+                        parsed.extend(parsed_subtree)
+                        logger.debug("subtree at: %s has matches. %s, %s", child.node, parsed, unparsed)
+                        break
+                else:
+                    # no matches found in command tree
+                    # return children of root as suggestions
+                    logger.debug("no matches in subtree: %s. returning children as suggestions", root.node)
+                    for child in root.children:
+                        suggestions[child.node] = child.help
         else:
+            logger.debug("no token or option match")
             unparsed.append(token)
         return parsed, unparsed, suggestions
 
     def peekForOption(self, unparsed):
         """ Peek to find out if next token is an option """
-        if unparsed and unparsed[-1].startswith("--"):
+        if unparsed and unparsed[-1].startswith("-"):
             return True
         return False
 
     def evalOptions(self, root, parsed, unparsed):
         """ Evaluate only the options and return flags as suggestions """
+        logger.debug("parsing options at tree: %s with p:%s, u:%s", root.node, parsed, unparsed)
         suggestions = dict()
         token = unparsed.pop().strip()
 
         allFlags = root.localFlags + self.globalFlags
         for flag in allFlags:
             if flag.name == token:
+                logger.debug("matched token: %s with flag: %s", token, flag.name)
                 parsed.append(token)
+                if self.peekForOption(unparsed):  # recursively look for further options
+                    parsed, unparsed, suggestions = self.evalOptions(root, parsed, unparsed[:])
                 break
         else:
+            logger.debug("no flags match, returning allFlags suggestions")
             for flag in allFlags:
                 suggestions[flag.name] = flag.helptext
 
         if suggestions:  # incomplete parse, replace token
+            logger.debug("incomplete option: %s provided. returning suggestions", token)
             unparsed.append(token)
         return parsed, unparsed, suggestions
 

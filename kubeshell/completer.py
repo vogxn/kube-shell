@@ -8,16 +8,15 @@ import json
 import os
 import os.path
 
-from kubeshell.client import KubernetesClient
 from kubeshell.parser import Parser
+logger = logging.getLogger(__name__)
+
 
 class KubectlCompleter(Completer):
 
     def __init__(self):
         self.inline_help = True
         self.namespace = ""
-        self.kube_client = KubernetesClient()
-        self.logger = logging.getLogger(__name__)
 
         try:
             DATA_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -26,7 +25,7 @@ class KubectlCompleter(Completer):
                 self.kubectl_dict = json.load(json_file)
             self.parser = Parser(DATA_PATH)
         except Exception as ex:
-            self.logger.error("got an exception" + ex.message)
+            logger.error("got an exception" + ex.message)
 
     def set_inline_help(self, val):
         self.inline_help = val
