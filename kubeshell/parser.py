@@ -1,10 +1,10 @@
 import json
 import os
 
-from kubeshell.client import KubernetesClient
-
 import logging
 logger = logging.getLogger(__name__)
+
+from kubeshell.client import KubernetesClient
 
 
 class Option(object):
@@ -128,7 +128,7 @@ class Parser(object):
 
     def peekForOption(self, unparsed):
         """ Peek to find out if next token is an option """
-        if unparsed and unparsed[-1].startswith("-"):
+        if unparsed and unparsed[-1].startswith("--"):
             return True
         return False
 
@@ -149,6 +149,9 @@ class Parser(object):
                 parsed.append(token)
                 if self.peekForOption(unparsed):  # recursively look for further options
                     parsed, unparsed, suggestions = self.evalOptions(root, parsed, unparsed[:])
+                elif token == "--namespace":
+                    namespaces = [('default', None), ('minikube', None), ('gitlab', None)]  # self.kube_client.get_resource("namespace")
+                    suggestions = dict(namespaces)
                 break
         else:
             logger.debug("no flags match, returning allFlags suggestions")

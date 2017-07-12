@@ -9,6 +9,7 @@ import os
 import os.path
 
 from kubeshell.parser import Parser
+from kubeshell.client import KubernetesClient
 logger = logging.getLogger(__name__)
 
 
@@ -17,6 +18,7 @@ class KubectlCompleter(Completer):
     def __init__(self):
         self.inline_help = True
         self.namespace = ""
+        self.kube_client = KubernetesClient()
 
         try:
             DATA_DIR = os.path.dirname(os.path.realpath(__file__))

@@ -26,7 +26,7 @@ loggingConf = {
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
-            "level": "INFO",
+            "level": "DEBUG",
             "formatter": "default",
             "filename": logfile,
             "backupCount": 3,
@@ -44,7 +44,7 @@ loggingConf = {
             "propagate": False
         },
         "kubeshell": {
-            "level": "INFO",
+            "level": "DEBUG",
             "handlers": ["file"],
             "propagate": False
         }
