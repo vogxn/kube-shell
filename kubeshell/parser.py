@@ -71,11 +71,22 @@ class Parser(object):
         returns tuple of (parsed tokens, suggestions)
         """
         if len(tokens) == 1:
-            return list(), {"kubectl": self.ast.help}
+            return list(), tokens, {"kubectl": self.ast.help}
         else:
             tokens.reverse()
-        parsed, _, suggestions = self.treewalk(self.ast, parsed=list(), unparsed=tokens)
-        return parsed, suggestions
+        parsed, unparsed, suggestions = self.treewalk(self.ast, parsed=list(), unparsed=tokens)
+        if not suggestions and unparsed:
+            # TODO: @vogxn: This is hack until we include expected value types for each option and argument.
+            # Whenver we recieve no suggestions but are left with unparsed tokens we pop the value and walk the
+            # tree again without values
+            logger.debug("unparsed tokens remain, possible value encountered")
+            unparsed.pop()
+            parsed.reverse()
+            unparsed.extend(parsed)
+            logger.debug("resuming treewalk with tokens: %s", unparsed)
+            return self.treewalk(self.ast, parsed=list(), unparsed=unparsed)
+        else:
+            return parsed, unparsed, suggestions
 
     def treewalk(self, root, parsed, unparsed):
         """ Recursively walks the syntax tree at root and returns
@@ -126,6 +137,10 @@ class Parser(object):
         logger.debug("parsing options at tree: %s with p:%s, u:%s", root.node, parsed, unparsed)
         suggestions = dict()
         token = unparsed.pop().strip()
+
+        parts = token.partition('=')
+        if parts[-1] != '':  # parsing for --option=value type input
+            token = parts[0]
 
         allFlags = root.localFlags + self.globalFlags
         for flag in allFlags:
